@@ -1,0 +1,53 @@
+
+---------------------------------------------------------------------------------------------------------
+c:
+set JAVA_HOME=c:\dev\java\jdk1.6.0_45
+set PATH=%PATH%;%JAVA_HOME%\bin
+
+set SCALA_HOME=C:\dev\languages\scala
+set PATH=%PATH%;%SCALA_HOME%\bin
+
+set SPARK_HOME=c:\dev\servers\spark-1.0.1-bin-hadoop2
+set PATH=%PATH%;%SPARK_HOME%\bin
+
+cd c:\dev\projects\BigDataBootCampLabs\SparkWorkshop\SparkWorkshopLabs\graphx-sample-app
+
+REM  GraphX requires the Kryo serializer to achieve maximum performance. 
+REM  To see what serializer is being used check the Spark Shell UI by going to 
+REM  http://localhost:4040/environment/ and checking if the spark.serializer property is set.
+REM  By default Kryo Serialization is not enabled. 
+REM  In this exercise we will walk through the process of enabling Kryo Serialization for the spark shell.
+REM
+REM  Set the Serialization setting in "spark-shell.cmd" file.
+REM
+REM  set SPARK_JAVA_OPTS=%SPARK_JAVA_OPTS% -Dspark.serializer=org.apache.spark.serializer.KryoSerializer -Dspark.kryo.registrator=org.apache.spark.graphx.GraphKryoRegistrator
+
+spark-shell.cmd
+
+sc
+
+---------------------------------------------------------------------------------------------------------
+// Spark UI:
+http://localhost:4040
+---------------------------------------------------------------------------------------------------------
+//
+// Estimate the value of Pi using a Monte Carlo method
+//
+
+import scala.math.random
+import org.apache.spark._
+
+val slices = 2
+val n = 100000 * slices
+
+val count = sc.parallelize(1 to n, slices).map { i =>
+	val x = random * 2 - 1
+	val y = random * 2 - 1
+	if (x*x + y*y < 1) 1 else 0
+}.reduce(_ + _)
+
+println("Pi is roughly " + 4.0 * count / n)
+
+
+---------------------------------------------------------------------------------------------------------
+

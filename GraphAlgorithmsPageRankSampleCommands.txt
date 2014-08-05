@@ -1,0 +1,314 @@
+
+---------------------------------------------------------------------------------------------------------
+//
+// Reference:
+// http://spark.apache.org/docs/latest/graphx-programming-guide.html
+//
+---------------------------------------------------------------------------------------------------------
+//
+//  Launch Spark Scala Shell:
+//
+
+c:
+REM set JAVA_HOME=c:\dev\java\jdk1.7.0_51
+set JAVA_HOME=c:\dev\java\jdk1.6.0_35
+set PATH=%PATH%;%JAVA_HOME%\bin
+
+set MAVEN_HOME=c:\dev\tools\apache-maven-3.0.4
+set PATH=%PATH%;%MAVEN_HOME%\bin
+
+set GIT_HOME=c:\dev\tools\Git
+set PATH=%PATH%;%GIT_HOME%\bin
+
+set SBT_HOME=c:\dev\tools\sbt\bin
+set PATH=%PATH%;%SBT_HOME%\bin
+
+set SCALA_HOME=C:\dev\languages\scala
+set PATH=%PATH%;%SCALA_HOME%\bin
+
+REM set SPARK_HOME=c:\dev\servers\spark-1.0.0
+
+set SPARK_HOME=c:\dev\servers\spark-1.0.1-bin-hadoop2
+set PATH=%PATH%;%SPARK_HOME%\bin
+
+set MAVEN_OPTS=-Xmx1024m -XX:MaxPermSize=512M -XX:ReservedCodeCacheSize=512m
+
+cd c:\dev\projects\BigDataBootCampLabs\SparkWorkshop\SparkWorkshopLabs\graphx-sample-app
+
+REM c:\dev\servers\spark-1.0.0\bin\spark-shell.cmd
+
+spark-shell.cmd
+
+---------------------------------------------------------------------------------------------------------
+
+//
+// Page Rank Example
+//
+
+//
+// Reference:
+// http://spark.apache.org/docs/latest/graphx-programming-guide.html#pagerank
+//
+
+//
+// Use Case Description:
+//
+// PageRank measures the importance of each vertex in a graph, assuming an edge 
+// from u to v represents an endorsement of v’s importance by u. 
+// For example, if a Twitter user is followed by many others, the user will be ranked highly.
+//
+// GraphX comes with static and dynamic implementations of PageRank as methods on the PageRank object. 
+// Static PageRank runs for a fixed number of iterations, while dynamic PageRank runs until the ranks 
+// converge (i.e., stop changing by more than a specified tolerance). 
+// GraphOps allows calling these algorithms directly as methods on Graph.
+
+// GraphX also includes an example social network dataset that we can run PageRank on. 
+// A set of users is given in graphx/data/users.txt, and a set of relationships between users is 
+// given in graphx/data/followers.txt.
+// We compute the PageRank of each user as follows:
+
+
+import org.apache.spark._
+import org.apache.spark.graphx._
+import org.apache.spark.rdd.RDD
+
+
+// Join the ranks with the usernames
+val users = sc.textFile("graphx/data/users.txt").map { line =>
+	val fields = line.split(",")
+	(fields(0).toLong, fields(1))
+}
+
+
+// Load the edges as a graph
+val graph = GraphLoader.edgeListFile(sc, "graphx/data/followers.txt")
+
+
+// Run PageRank
+val ranks = graph.pageRank(0.0001).vertices
+
+
+val ranksByUsername = users.join(ranks).map {
+	case (id, (username, rank)) => (username, rank)
+}
+
+
+// Print the result
+println(ranksByUsername.collect().mkString("\n"))
+
+
+---------------------------------------------------------------------------------------------------------
+//
+// Connected Components Example
+//
+
+//
+// Reference:
+// http://spark.apache.org/docs/latest/graphx-programming-guide.html#connected-components
+//
+
+//
+// Use Case Description:
+//
+// The connected components algorithm labels each connected component of the graph with 
+// the ID of its lowest-numbered vertex. For example, in a social network, 
+// connected components can approximate clusters. 
+// GraphX contains an implementation of the algorithm in the ConnectedComponents object, 
+// and we compute the connected components of the example social network dataset 
+// from the PageRank section as follows:
+
+
+import org.apache.spark._
+import org.apache.spark.graphx._
+import org.apache.spark.rdd.RDD
+
+
+// Join the connected components with the usernames
+val users = sc.textFile("graphx/data/users.txt").map { line =>
+	val fields = line.split(",")
+	(fields(0).toLong, fields(1))
+}
+
+
+// Load the graph as in the PageRank example
+val graph = GraphLoader.edgeListFile(sc, "graphx/data/followers.txt")
+
+
+// Find the connected components
+val cc = graph.connectedComponents().vertices
+
+
+val ccByUsername = users.join(cc).map {
+	case (id, (username, cc)) => (username, cc)
+}
+
+// Print the result
+println(ccByUsername.collect().mkString("\n"))
+
+
+---------------------------------------------------------------------------------------------------------
+//
+// Triangle Counting Example
+//
+
+//
+// Reference:
+// http://spark.apache.org/docs/latest/graphx-programming-guide.html#connected-components
+//
+
+//
+// Use Case Description:
+//
+// A vertex is part of a triangle when it has two adjacent vertices with an edge between them. 
+// GraphX implements a triangle counting algorithm in the TriangleCount object that determines 
+// the number of triangles passing through each vertex, providing a measure of clustering. 
+// We compute the triangle count of the social network dataset from the PageRank section. 
+// Note that TriangleCount requires the edges to be in canonical orientation (srcId < dstId) 
+// and the graph to be partitioned using Graph.partitionBy. 
+// Also note that Graph.partitionBy is broken in Spark 1.0.0 due to SPARK-1931; 
+// see the suggested workarounds above.
+
+
+import org.apache.spark._
+import org.apache.spark.graphx._
+import org.apache.spark.rdd.RDD
+
+
+// Define our own version of partitionBy to work around SPARK-1931
+import org.apache.spark.HashPartitioner
+def partitionBy[ED](edges: RDD[Edge[ED]], partitionStrategy: PartitionStrategy): RDD[Edge[ED]] = {
+	val numPartitions = edges.partitions.size
+	edges.map(e => (partitionStrategy.getPartition(e.srcId, e.dstId, numPartitions), e))
+		.partitionBy(new HashPartitioner(numPartitions))
+		.mapPartitions(_.map(_._2), preservesPartitioning = true)
+}
+
+
+// Join the triangle counts with the usernames
+val users = sc.textFile("graphx/data/users.txt").map { line =>
+	val fields = line.split(",")
+	(fields(0).toLong, fields(1))
+}
+
+
+// Load the edges in canonical order and partition the graph for triangle count
+val unpartitionedGraph = GraphLoader.edgeListFile(sc, "graphx/data/followers.txt", true)
+
+// 
+// Broken
+//
+// val graph = Graph(partitionBy(unpartitionedGraph.edges, PartitionStrategy.RandomVertexCut), unpartitionedGraph.vertices)
+//
+
+
+val graph = Graph(unpartitionedGraph.vertices, partitionBy(unpartitionedGraph.edges, PartitionStrategy.RandomVertexCut))
+
+
+// Find the triangle count for each vertex
+val triCounts = graph.triangleCount().vertices
+
+
+val triCountByUsername = users.join(triCounts).map { case (id, (username, tc)) =>
+	(username, tc)
+}
+
+
+// Print the result
+println(triCountByUsername.collect().mkString("\n"))
+
+---------------------------------------------------------------------------------------------------------
+
+//
+// Property Operators
+//
+
+import org.apache.spark._
+import org.apache.spark.graphx._
+import org.apache.spark.rdd.RDD
+
+
+// Create an RDD for the vertices
+val users: RDD[(VertexId, (String, String))] =
+	sc.parallelize(Array((3L, ("rxin", "student")), (7L, ("jgonzal", "postdoc")),
+                       (5L, ("franklin", "prof")), (2L, ("istoica", "prof"))))
+
+
+// Create an RDD for edges
+val relationships: RDD[Edge[String]] =
+	sc.parallelize(Array(Edge(3L, 7L, "collab"),    Edge(5L, 3L, "advisor"),
+                       Edge(2L, 5L, "colleague"), Edge(5L, 7L, "pi")))
+
+
+// Define a default user in case there are relationship with missing user
+val defaultUser = ("John Doe", "Missing")
+
+
+// Build the initial Graph
+val graph = Graph(users, relationships, defaultUser)
+
+
+// Count all users who are postdocs
+graph.vertices.filter { case (id, (name, pos)) => pos == "postdoc" }.count
+
+
+// Count all users who are professors
+graph.vertices.filter { case (id, (name, pos)) => pos == "prof" }.count
+
+
+// Count all the edges where src > dst
+graph.edges.filter(e => e.srcId > e.dstId).count
+
+OR
+
+graph.edges.filter { case Edge(src, dst, prop) => src > dst }.count
+
+
+// SQL Expression
+// SELECT src.id, dst.id, src.attr, e.attr, dst.attr FROM edges AS e LEFT JOIN vertices AS src, vertices AS dst ON e.srcId = src.Id AND e.dstId = dst.Id
+
+
+// Use the triplets view to create an RDD of facts.
+val facts: RDD[String] =
+	graph.triplets.map(triplet =>
+		triplet.srcAttr._1 + " is the " + triplet.attr + " of " + triplet.dstAttr._1)
+facts.collect.foreach(println(_))
+
+
+//
+// Property Operators
+//
+
+
+def mapUdf(t: Triplet[User, Double]): 
+Iterator[Vid, Int] = {
+	if (t.src.age > t.dst.age) (t.dstId, 1)
+	else if (t.src.age < t.dst.age) (t.srcId, 1)
+	else Iterator.empty
+}
+
+
+
+val newVertices = graph.vertices.map { case (id, attr) => (id, mapUdf(id, attr)) }
+
+val newGraph = Graph(newVertices, graph.edges)
+
+
+
+
+val graph: Graph[User, Double]
+
+def mapF(t: Triplet[User, Double])
+: Iterator[Vid, Int] = {
+if (t.src.age > t.dst.age) (t.dstId, 1)
+else (t.src.age < t.dst.age) (t.srcId, 1)
+else Iterator.empty
+}
+
+def reduceUDF(a: Int, b: Int): Int = a + b
+val seniors = graph.mrTriplets(mapUDF, reduceUDF)
+
+---------------------------------------------------------------------------------------------------------
+
+
+
+

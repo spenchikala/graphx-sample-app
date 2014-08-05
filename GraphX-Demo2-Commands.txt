@@ -1,0 +1,35 @@
+
+c:
+REM set JAVA_HOME=c:\dev\java\jdk1.7.0_51
+set JAVA_HOME=c:\dev\java\jdk1.6.0_35
+set PATH=%PATH%;%JAVA_HOME%\bin
+
+set MAVEN_HOME=c:\dev\tools\apache-maven-3.0.4
+set PATH=%PATH%;%MAVEN_HOME%\bin
+
+set GIT_HOME=c:\dev\tools\Git
+set PATH=%PATH%;%GIT_HOME%\bin
+
+set SBT_HOME=c:\dev\tools\sbt\bin
+set PATH=%PATH%;%SBT_HOME%\bin
+
+set SCALA_HOME=C:\dev\languages\scala
+set PATH=%PATH%;%SCALA_HOME%\bin
+
+REM set SPARK_HOME=c:\dev\servers\spark-1.0.0
+
+set SPARK_HOME=c:\dev\servers\spark-1.0.1-bin-hadoop2
+set PATH=%PATH%;%SPARK_HOME%\bin
+
+set MAVEN_OPTS=-Xmx1024m -XX:MaxPermSize=512M -XX:ReservedCodeCacheSize=512m
+
+cd c:\dev\projects\BigDataBootCampLabs\SparkWorkshop\SparkWorkshopLabs\graphx-sample-app\scala
+
+spark-shell.cmd
+
+
+scala org.apache.spark.examples.graphx.LiveJournalPageRank
+
+
+
+
