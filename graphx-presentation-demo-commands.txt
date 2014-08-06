@@ -16,7 +16,8 @@ set PATH=%PATH%;%JAVA_HOME%\bin
 set SCALA_HOME=C:\dev\languages\scala
 set PATH=%PATH%;%SCALA_HOME%\bin
 
-set SPARK_HOME=c:\dev\servers\spark-1.0.1-bin-hadoop2
+REM set SPARK_HOME=c:\dev\servers\spark-1.0.1-bin-hadoop2
+set SPARK_HOME=c:\dev\servers\spark-1.0.2-bin-hadoop2
 set PATH=%PATH%;%SPARK_HOME%\bin
 
 cd c:\dev\projects\BigDataBootCampLabs\SparkWorkshop\SparkWorkshopLabs\graphx-sample-app
@@ -66,6 +67,10 @@ REM
 
 sc
 
+sc.version
+
+sc.appName
+
 ---------------------------------------------------------------------------------------------------------
 // Spark UI:
 http://localhost:4040
@@ -74,7 +79,6 @@ http://localhost:4040
 // Spark API Import Statements.
 import org.apache.spark.graphx._
 import org.apache.spark.rdd.RDD
-
 
 // Load the article data from text file into RDD.
 val articles: RDD[String] = sc.textFile("graphx/data/graphx-wiki-vertices.txt")
@@ -145,13 +149,14 @@ graph.triplets.take(5).foreach(println(_))
 
 // Running PageRank on Wikipedia
 
+
 // Do some actual graph analytics. 
 // For this example, we are going to run PageRank to evaluate what the most important pages in the Wikipedia graph are.
 val prGraph = graph.pageRank(0.001).cache()
 
-
 // Graph.pageRank returns a graph whose vertex attributes are the PageRank values of each page.
 // The 0.001 parameter is the error tolerance that tells PageRank when the ranks have converged.
+
 
 // Find the titles of the ten most important articles in the Berkeley subgraph of Wikipedia.
 val titleAndPrGraph = graph.outerJoinVertices(prGraph.vertices) {
@@ -161,4 +166,13 @@ titleAndPrGraph.vertices.top(10) {
 	Ordering.by((entry: (VertexId, (Double, String))) => entry._2._1)
 }.foreach(t => println(t._2._2 + ": " + t._2._1))
 
+
+---------------------------------------------------------------------------------------------------------
+
+//
+import org.apache.spark.graphx.lib._
+val prGraph = PageRank.run(graph, 100)
+//
+
+---------------------------------------------------------------------------------------------------------
 
